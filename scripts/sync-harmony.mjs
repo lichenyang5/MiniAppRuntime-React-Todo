@@ -1,0 +1,14 @@
+import { cp, mkdir, access } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const targetArg = process.argv[2] || process.env.HARMONY_PROJECT;
+if (!targetArg) throw new Error('请提供鸿蒙工程目录：npm run sync:harmony -- "C:\\你的目录\\MyApplication4"');
+const target = path.resolve(targetArg);
+await access(path.join(target, 'build-profile.json5'));
+await access(path.join(target, 'entry/src/main/module.json5'));
+await access(path.join(root, 'dist/index.html'));
+const web = path.join(target, 'entry/src/main/resources/rawfile/web');
+await mkdir(web, { recursive: true });
+await cp(path.join(root, 'dist'), web, { recursive: true });
+console.log(`React 构建产物已同步到 ${web}。请在 DevEco Rebuild 后 Run entry。`);
