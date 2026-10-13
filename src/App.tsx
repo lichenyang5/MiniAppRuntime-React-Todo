@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { addTodo, newTodoId } from './todos'
+import { addTodo, newTodoId, updateTodo, CATEGORIES, isOverdue, localToday } from './todos'
 import {
   ERROR_CODE_TIMEOUT,
   ERROR_CODE_INVALID_RESPONSE,
 } from '@lcy453/miniapp-runtime-harmony-web-sdk'
-import type { Todo } from './todos'
+import type { Todo, Category, TodoDraft } from './todos'
 import { loadTodos, notify, saveTodos, storageLabel } from './runtime'
 import './App.css'
 
@@ -22,6 +22,11 @@ const errorMessage = (error: unknown) => {
 function App() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
+  const [category, setCategory] = useState<Category>('personal')
+  const [dueDate, setDueDate] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | Category>('all')
+  const [editing, setEditing] = useState<{ id: string; draft: TodoDraft } | null>(null)
+  const [today, setToday] = useState(() => localToday())
   const [filter, setFilter] = useState<Filter>('all')
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error' | 'uncertain'>('loading')
   const [busy, setBusy] = useState(false)
@@ -29,7 +34,36 @@ function App() {
   const [error, setError] = useState('')
   const locked = useRef(false)
   const lifecycle = useRef<AbortController | null>(null)
+  const editorInput = useRef<HTMLInputElement | null>(null)
+  const newInput = useRef<HTMLInputElement | null>(null)
+  const returnFocus = useRef<HTMLButtonElement | null>(null)
   const [reload, setReload] = useState(0)
+  const editingId = editing?.id
+
+  useEffect(() => {
+    if (editingId) {
+      editorInput.current?.focus()
+      editorInput.current?.scrollIntoView({ block: 'center' })
+    }
+  }, [editingId])
+
+  useEffect(() => {
+    if (!editingId && !busy && returnFocus.current) {
+      if (returnFocus.current.isConnected) returnFocus.current.focus()
+      else newInput.current?.focus()
+      returnFocus.current = null
+    }
+  }, [editingId, busy])
+
+  useEffect(() => {
+    const refresh = () => setToday(localToday())
+    const timer = window.setInterval(refresh, 60000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -91,7 +125,22 @@ function App() {
   function submit(event: FormEvent) {
     event.preventDefault()
     try {
-      void persist(addTodo(todos, title, newTodoId()), '已添加待办', () => setTitle(''))
+      void persist(addTodo(todos, title, newTodoId(), { category, dueDate }), '已添加待办', () => {
+        setTitle('')
+        setDueDate('')
+      })
+    } catch (reason) {
+      setError(errorMessage(reason))
+    }
+  }
+
+  function submitEdit(event: FormEvent) {
+    event.preventDefault()
+    if (!editing) return
+    try {
+      void persist(updateTodo(todos, editing.id, editing.draft), '已更新待办', () =>
+        setEditing(null),
+      )
     } catch (reason) {
       setError(errorMessage(reason))
     }
@@ -99,7 +148,9 @@ function App() {
 
   const completed = todos.filter((item) => item.done).length
   const visible = todos.filter(
-    (item) => filter === 'all' || (filter === 'done' ? item.done : !item.done),
+    (item) =>
+      (filter === 'all' || (filter === 'done' ? item.done : !item.done)) &&
+      (categoryFilter === 'all' || (item.category ?? 'personal') === categoryFilter),
   )
   const disabled = phase !== 'ready' || busy
 
@@ -123,22 +174,140 @@ function App() {
           <small>{completed} 项已完成</small>
         </div>
         <form onSubmit={submit}>
-          <label className="sr-only" htmlFor="todo-title">
-            新待办
-          </label>
-          <input
-            id="todo-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={120}
-            disabled={disabled}
-            placeholder="接下来想完成什么？"
-            autoComplete="off"
-          />
-          <button className="primary" disabled={disabled || !title.trim()} type="submit">
-            ＋ 添加
-          </button>
+          <div className="composer-row">
+            <label className="sr-only" htmlFor="todo-title">
+              新待办
+            </label>
+            <input
+              id="todo-title"
+              ref={newInput}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={120}
+              disabled={disabled || Boolean(editing)}
+              placeholder="接下来想完成什么？"
+              autoComplete="off"
+            />
+            <button
+              className="primary"
+              disabled={disabled || Boolean(editing) || !title.trim()}
+              type="submit"
+            >
+              ＋ 添加
+            </button>
+          </div>
+          <div className="detail-fields">
+            <label htmlFor="new-category">
+              分类
+              <select
+                id="new-category"
+                aria-label="新增分类"
+                value={category}
+                disabled={disabled || Boolean(editing)}
+                onChange={(event) => setCategory(event.target.value as Category)}
+              >
+                {Object.entries(CATEGORIES).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="new-due">
+              截止日期（可选）
+              <input
+                id="new-due"
+                aria-label="新增截止日期"
+                type="date"
+                min="0001-01-01"
+                max="9999-12-31"
+                value={dueDate}
+                disabled={disabled || Boolean(editing)}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </label>
+          </div>
         </form>
+        {editing && (
+          <section className="editor" aria-label="编辑待办">
+            <h3>编辑待办</h3>
+            <form onSubmit={submitEdit}>
+              <label htmlFor="edit-title">内容</label>
+              <input
+                id="edit-title"
+                ref={editorInput}
+                aria-label="编辑内容"
+                value={editing.draft.title}
+                maxLength={120}
+                disabled={disabled}
+                onChange={(event) =>
+                  setEditing({ ...editing, draft: { ...editing.draft, title: event.target.value } })
+                }
+              />
+              <div className="detail-fields">
+                <label htmlFor="edit-category">
+                  分类
+                  <select
+                    id="edit-category"
+                    aria-label="编辑分类"
+                    value={editing.draft.category}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      setEditing({
+                        ...editing,
+                        draft: { ...editing.draft, category: event.target.value as Category },
+                      })
+                    }
+                  >
+                    {Object.entries(CATEGORIES).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label htmlFor="edit-due">
+                  截止日期（可选）
+                  <input
+                    id="edit-due"
+                    aria-label="编辑截止日期"
+                    type="date"
+                    min="0001-01-01"
+                    max="9999-12-31"
+                    value={editing.draft.dueDate}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      setEditing({
+                        ...editing,
+                        draft: { ...editing.draft, dueDate: event.target.value },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button
+                  className="primary"
+                  type="submit"
+                  disabled={disabled || !editing.draft.title.trim()}
+                >
+                  保存修改
+                </button>
+                <button
+                  className="quiet"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    setEditing(null)
+                    setError('')
+                  }}
+                >
+                  取消编辑
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
         <div className="toolbar">
           <div className="filters" aria-label="筛选待办">
             {(
@@ -155,7 +324,7 @@ function App() {
           </div>
           <button
             className="quiet"
-            disabled={disabled || completed === 0}
+            disabled={disabled || Boolean(editing) || completed === 0}
             onClick={() =>
               void persist(
                 todos.filter((item) => !item.done),
@@ -165,6 +334,21 @@ function App() {
           >
             清理已完成
           </button>
+        </div>
+        <div className="category-filter">
+          <label htmlFor="category-filter">分类筛选</label>
+          <select
+            id="category-filter"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value as 'all' | Category)}
+          >
+            <option value="all">全部分类</option>
+            {Object.entries(CATEGORIES).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
         {phase === 'uncertain' ? (
           <p className="empty">保存结果待确认，已暂停编辑。请退出并重新启动应用。</p>
@@ -195,7 +379,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={item.done}
-                    disabled={disabled}
+                    disabled={disabled || Boolean(editing)}
                     onChange={() =>
                       void persist(
                         todos.map((todo) =>
@@ -205,11 +389,42 @@ function App() {
                       )
                     }
                   />
-                  <span>{item.title}</span>
+                  <span className="todo-copy">
+                    <span className="todo-title">{item.title}</span>
+                    <span className="meta-tags">
+                      <span className="meta-tag">{CATEGORIES[item.category ?? 'personal']}</span>
+                      {item.dueDate && (
+                        <span className={isOverdue(item, today) ? 'meta-tag overdue' : 'meta-tag'}>
+                          {isOverdue(item, today) ? '已逾期' : '截止'} · {item.dueDate}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </label>
                 <button
+                  className="quiet edit-button"
+                  type="button"
+                  disabled={disabled || Boolean(editing)}
+                  aria-label={`编辑：${item.title}`}
+                  onClick={(event) => {
+                    returnFocus.current = event.currentTarget
+                    setEditing({
+                      id: item.id,
+                      draft: {
+                        title: item.title,
+                        category: item.category ?? 'personal',
+                        dueDate: item.dueDate ?? '',
+                      },
+                    })
+                    setError('')
+                    setMessage('')
+                  }}
+                >
+                  编辑
+                </button>
+                <button
                   className="delete"
-                  disabled={disabled}
+                  disabled={disabled || Boolean(editing)}
                   aria-label={`删除：${item.title}`}
                   onClick={() =>
                     void persist(
