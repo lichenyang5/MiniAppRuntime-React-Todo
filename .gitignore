@@ -35,3 +35,6 @@ harmony/entry/src/main/resources/rawfile/web/
 *.p7b
 *.cer
 *.keystore
+playwright-report/
+test-results/
+.test-site/

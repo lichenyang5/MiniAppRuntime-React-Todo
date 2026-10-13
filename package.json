@@ -18,7 +18,10 @@
     "lint:fix": "eslint . --fix",
     "test": "node --experimental-strip-types --test src/todos.test.ts scripts/harmony.test.mjs",
     "check:harmony": "node scripts/check-harmony.mjs",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:browser": "playwright test",
+    "check:all": "npm run check && npm run test:browser",
+    "build:test-site": "vite build --config tests/vite.config.ts"
   },
   "dependencies": {
     "@lcy453/miniapp-runtime-harmony-web-sdk": "0.1.0",
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

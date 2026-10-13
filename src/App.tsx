@@ -28,11 +28,14 @@ function App() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const locked = useRef(false)
+  const lifecycle = useRef<AbortController | null>(null)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let active = true
-    loadTodos()
+    const controller = new AbortController()
+    lifecycle.current = controller
+    loadTodos(controller.signal)
       .then((items) => {
         if (!active) return
         setTodos(items)
@@ -46,26 +49,31 @@ function App() {
       })
     return () => {
       active = false
+      controller.abort()
     }
   }, [reload])
 
   async function persist(next: Todo[], success: string, afterSave?: () => void) {
-    if (locked.current || phase !== 'ready') return
+    const signal = lifecycle.current?.signal
+    if (!signal || signal.aborted || locked.current || phase !== 'ready') return
     locked.current = true
     setBusy(true)
     setError('')
     setMessage('')
     try {
-      await saveTodos(next)
+      await saveTodos(next, signal)
+      if (signal.aborted) return
       setTodos(next)
       afterSave?.()
       setMessage(success)
       try {
-        await notify(success)
+        await notify(success, signal)
       } catch (reason) {
-        setMessage(`${success}（数据已保存，Toast 失败：${errorMessage(reason)}）`)
+        if (!signal.aborted)
+          setMessage(`${success}（数据已保存，Toast 失败：${errorMessage(reason)}）`)
       }
     } catch (reason) {
+      if (signal.aborted) return
       if ([ERROR_CODE_TIMEOUT, ERROR_CODE_INVALID_RESPONSE].includes(Number(errorCode(reason)))) {
         setPhase('uncertain')
         setError(
@@ -76,7 +84,7 @@ function App() {
       }
     } finally {
       locked.current = false
-      setBusy(false)
+      if (!signal.aborted) setBusy(false)
     }
   }
 
