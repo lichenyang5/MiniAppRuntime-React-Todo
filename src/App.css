@@ -59,6 +59,11 @@ small {
 }
 form {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.composer-row {
+  display: flex;
   gap: 10px;
 }
 form input {
@@ -132,12 +137,99 @@ form input {
   accent-color: #3b6c4f;
   flex-shrink: 0;
 }
-.todo-list label span {
+.todo-title {
   overflow-wrap: anywhere;
 }
-.done label span {
+.done .todo-title {
   text-decoration: line-through;
   color: #98a196;
+}
+.detail-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.detail-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: #718177;
+  min-width: 0;
+}
+select {
+  font: inherit;
+  color: #325a3c;
+  border: 1px solid #dde5d9;
+  border-radius: 8px;
+  background: #f8faf6;
+  padding: 10px;
+  min-width: 0;
+}
+.detail-fields input {
+  padding: 10px;
+  min-height: 40px;
+  width: 100%;
+}
+.category-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #718177;
+  margin: 8px 0 16px;
+}
+.category-filter select {
+  flex: 1;
+  max-width: 180px;
+}
+.editor {
+  background: #f6f9f3;
+  border: 1px solid #dce8d5;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+}
+.editor h3 {
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+.editor form > label {
+  font-size: 12px;
+  color: #718177;
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+}
+.edit-actions .primary {
+  padding: 11px 18px;
+}
+.todo-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.meta-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.meta-tag {
+  font-size: 10px;
+  color: #718177;
+  background: #f0f4ed;
+  border-radius: 5px;
+  padding: 3px 6px;
+}
+.meta-tag.overdue {
+  color: #9e453b;
+  background: #fff0e7;
+}
+.edit-button {
+  flex-shrink: 0;
+  min-height: 40px;
 }
 .delete {
   border: 0;
