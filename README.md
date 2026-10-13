@@ -29,6 +29,18 @@ npm run build:harmony
 `build:harmony` 构建 React、内联 JS/CSS、同步到仓库自带的宿主，再调用 Hvigor 编译 HAP。未配置签名时可以验证 unsigned HAP 编译；真机安装须完成下一步。
 
 用 DevEco Studio **打开仓库内的 `harmony/` 目录**，不要打开 React 仓库根作为鸿蒙工程。执行 Sync and Refresh Project，在 Project Structure → Signing Configs 配置本机自动签名，连接并解锁手机，然后 Run `entry`。
+自动签名生成后，还要确认当前 product 关联了该签名。在本地 `harmony/build-profile.json5` 中，`app.products` 的 default 产品应含以下字段（保留已有其他配置）：
+
+```json5
+{
+  name: 'default',
+  signingConfig: 'default',
+}
+```
+
+这里的 `signingConfig` 值必须对应 `app.signingConfigs` 中的 `name`。可在 DevEco 的 Products 配置中选择对应签名，或在本地文件补上关联。仅生成签名材料或修改包名，仍可能构建出 unsigned HAP。
+
+重新构建后，确认 `harmony/entry/build/default/outputs/default/entry-default-signed.hap` 的时间是本次构建，再 Run。若报 `9568320 / no signature file`，优先检查这个关联与产物；该报错不表示应用页面或 Runtime 调用出了问题。本地签名配置保持忽略，不提交 Git。
 
 宿主包名为 `com.lichenyang.runtime.todo`，应用名称 Runtime Todo，不与旧 MyApplication4 共用应用数据。首次启动旧应用中的待办不会迁移。
 
@@ -116,6 +128,6 @@ Prettier 处理前端与工具代码，鸿蒙 `.ets` 源码及平台配置使用
 
 2026-10-12：原有 MyApplication4 宿主已真机验证 Storage、Toast code=0，force-stop 后待办与完成状态恢复；浏览器添加、完成、刷新恢复与清理通过。
 
-独立宿主使用新的包名，需要重新签名及设备验收。GitHub CI 覆盖前端、初始化/同步回归及公开宿主配置，未包含需要本地 HarmonyOS SDK 的 HAP 构建。延迟原生写入、损坏存储及权限异常的真机故障注入尚未完成。
+独立宿主使用新的包名，签名须按上述步骤在本机配置。GitHub CI 覆盖前端、初始化/同步回归及公开宿主配置，未包含需要本地 HarmonyOS SDK 的 HAP 构建。延迟原生写入、损坏存储及权限异常的真机故障注入尚未完成。
 
-2026-10-13：仅从 Git 跟踪文件创建全新目录，npm ci、公开 OHPM 安装、React 构建与独立宿主 unsigned HAP 编译通过。新宿主未配置本机签名，尚未真机验收；旧宿主的真机结果不能替代新包名的设备验收。
+2026-10-13：仅从 Git 跟踪文件创建全新目录，npm ci、公开 OHPM 安装、React 构建与独立宿主 unsigned HAP 编译通过。随后完成本机签名及 default 产品绑定，生成 signed HAP，新包名真机安装和启动通过。新包名的存储、Toast、重启恢复与异常矩阵仍需单独验收。
