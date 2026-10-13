@@ -40,5 +40,6 @@ export async function notify(message: string) {
 
 export function storageLabel() {
   return browserPreview && !(window as ProxyWindow).MyASCFNative
-    ? '浏览器预览 · 本地存储' : '鸿蒙 Runtime · 原生存储'
+    ? '浏览器预览 · 本地存储'
+    : '鸿蒙 Runtime · 原生存储'
 }

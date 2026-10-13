@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local HarmonyOS configuration, signing and generated files
+harmony/build-profile.json5
+harmony/local.properties
+**/.hvigor/
+**/oh_modules/
+**/build/
+**/.preview/
+harmony/entry/src/main/resources/rawfile/web/
+*.p12
+*.p7b
+*.cer
+*.keystore
