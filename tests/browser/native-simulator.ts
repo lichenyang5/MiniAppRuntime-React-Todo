@@ -3,26 +3,13 @@ import type { Page } from '@playwright/test'
 interface Request {
   requestId: string
   action: string
-  params: {
-    key?: string
-    value?: string
-    message?: string
-    taskId?: string
-    title?: string
-    atMs?: number
-  }
+  params: { key?: string; value?: string; message?: string; text?: string }
 }
 interface Response {
   requestId: string
   code: number | string
   message: string
-  data?: {
-    value?: string
-    echoAction?: string
-    supported?: boolean
-    notificationEnabled?: boolean
-    reminders?: Array<{ taskId: string; title: string; atMs: number }>
-  }
+  data?: { value?: string; echoAction?: string }
 }
 interface DebugRecord {
   requestId: string
@@ -33,11 +20,6 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
   let value = initialValue
   let writeMode: 'ok' | 'fail' | 'hold' | 'invalid' = 'ok'
   let toastFails = false
-  let remindersSupported = false
-  let notificationEnabled = false
-  let cancelFails = false
-  let scheduleFails = false
-  const reminders: Array<{ taskId: string; title: string; atMs: number }> = []
   const pending: Array<() => void> = []
   await page.exposeFunction('__testNativeSend', async (raw: string): Promise<Response> => {
     const request: Request = JSON.parse(raw)
@@ -47,29 +29,6 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
       code: 0,
       message: 'SUCCESS',
       data: { echoAction: request.action },
-    }
-    if (request.action === 'app.reminder.schedule' && scheduleFails)
-      return { ...success, code: 1700002, message: '代理提醒能力尚未开通，请更新 Profile' }
-    if (request.action.startsWith('app.reminder.')) {
-      if (request.action === 'app.reminder.requestPermission') notificationEnabled = true
-      if (request.action === 'app.reminder.schedule') {
-        if (reminders.some((item) => item.taskId === request.params.taskId))
-          return { ...success, code: 2010, message: '已有提醒' }
-        reminders.push({
-          taskId: request.params.taskId!,
-          title: request.params.title!,
-          atMs: request.params.atMs!,
-        })
-      }
-      if (request.action === 'app.reminder.cancel') {
-        if (cancelFails) return { ...success, code: 2010, message: 'SIMULATED_CANCEL_FAILURE' }
-        const index = reminders.findIndex((item) => item.taskId === request.params.taskId)
-        if (index >= 0) reminders.splice(index, 1)
-      }
-      return {
-        ...success,
-        data: { supported: remindersSupported, notificationEnabled, reminders: [...reminders] },
-      }
     }
     if (request.action === 'system.storage.getItem') return { ...success, data: { value } }
     if (request.action === 'system.storage.setItem') {
@@ -110,17 +69,6 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
   })
   return {
     requests,
-    reminders,
-    failSchedule() {
-      scheduleFails = true
-    },
-    enableReminders(enabled = false) {
-      remindersSupported = true
-      notificationEnabled = enabled
-    },
-    failCancel(fails: boolean) {
-      cancelFails = fails
-    },
     async recorded(requestId: string, status: string) {
       return page.evaluate(
         ({ requestId, status }) =>

@@ -2,9 +2,7 @@ import { createTypedApi, initMyASCF } from '@lcy453/miniapp-runtime-harmony-web-
 import { decodeTodos, STORAGE_KEY } from './todos'
 import type { Todo } from './todos'
 
-import { decodeReminderStatus, unsupported } from './reminders'
-const client = initMyASCF()
-const api = createTypedApi(client)
+const api = createTypedApi(initMyASCF())
 type ProxyWindow = Window & { MyASCFNative?: { postMessage?: unknown } }
 export const browserPreview = !/^(resource|file):$/.test(location.protocol)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -47,28 +45,13 @@ export function storageLabel() {
     : '鸿蒙 Runtime · 原生存储'
 }
 
-export async function reminderCall(
-  action: 'status' | 'requestPermission' | 'schedule' | 'cancel',
-  params: Record<string, unknown> = {},
-  signal?: AbortSignal,
-) {
-  if (browserPreview && !(window as ProxyWindow).MyASCFNative) return unsupported
-  await waitForNative(signal)
-  try {
-    const response = await client.send('app.reminder.' + action, params, {
-      signal,
-      timeout: action === 'requestPermission' ? 60000 : 15000,
-    })
-    return decodeReminderStatus(response.data)
-  } catch (error) {
-    if (
-      action === 'status' &&
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      /UNKNOWN_ACTION|unknown action|未注册|不支持.*action/i.test(String(error.message))
-    )
-      return unsupported
-    throw error
+export async function copyBackup(text: string, signal?: AbortSignal) {
+  if (browserPreview && !(window as ProxyWindow).MyASCFNative) {
+    if (signal?.aborted) throw new DOMException('页面已退出', 'AbortError')
+    if (!navigator.clipboard?.writeText) throw new Error('当前浏览器不支持自动复制')
+    await navigator.clipboard.writeText(text)
+    return
   }
+  await waitForNative(signal)
+  await api.system.clipboard.writeText({ text }, { signal })
 }

@@ -298,45 +298,48 @@ footer {
     padding: 7px 2px;
   }
 }
-.reminder-panel {
+.backup-panel {
   margin-top: 20px;
 }
-.reminder-panel p {
-  font-size: 12px;
-  color: #718177;
-  overflow-wrap: anywhere;
-}
-.reminder-panel form {
-  margin-top: 16px;
-}
-.reminder-panel label {
+.backup-panel p,
+.backup-panel label,
+.backup-panel summary {
   font-size: 12px;
   color: #718177;
 }
-.reminder-panel .primary {
+.backup-panel label {
+  display: block;
+  margin: 18px 0 8px;
+}
+.backup-panel textarea {
+  width: 100%;
+  border: 1px solid #dde5d9;
+  background: #f8faf6;
+  border-radius: 10px;
+  padding: 12px;
+  font: 12px/1.5 monospace;
+  resize: vertical;
+}
+.backup-panel .primary {
   padding: 12px 18px;
 }
-.reminder-list {
-  list-style: none;
-  padding: 0;
+.backup-panel input[type='file'] {
+  display: block;
+  max-width: 100%;
+  margin-top: 8px;
 }
-.reminder-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #eef1ec;
-}
-.reminder-list span {
+.import-preview {
+  padding: 12px;
+  border: 1px solid #dde5d9;
+  border-radius: 10px;
+  margin-top: 10px;
   overflow-wrap: anywhere;
 }
-.reminder-list small {
-  display: block;
-  margin-top: 5px;
+.import-preview ul {
+  max-height: 180px;
+  overflow: auto;
 }
-.reminder-target {
-  background: #eaf1e6;
-  outline: 2px solid #315c46;
-  border-radius: 8px;
+.backup-feedback {
+  min-height: 20px;
+  overflow-wrap: anywhere;
 }
