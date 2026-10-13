@@ -171,3 +171,47 @@ npm run test:browser
 清理已完成会处理所有分类的完成事项，不限于当前筛选结果。数据仍保存在原来的 react-todo:v1 键中。
 
 2026-10-13 业务功能验证：10 项数据/工具测试与 14 项浏览器回归通过，包含旧数据读取、编辑后身份/完成状态保留、日期校验、逾期规则、取消/失败重试、组合筛选和长列表编辑焦点。签名 HAP 编译及真机安装启动通过；真机分类选择器和日期控件可用，新增工作分类/今天截止日期的测试事项，编辑标题后 force-stop 重启，内容、分类和日期正确恢复。仅删除本次唯一测试事项。
+
+## 原生待办提醒
+
+在本仓库的鸿蒙宿主中，先添加待办，再到“待办提醒”选择事项和时间，点击“开启通知”允许系统通知，最后“设置提醒”。可用“2分钟后”快速验收。截止日期不会自动生成提醒；每个待办只保留一个提醒，调整时间或内容请先取消旧提醒再设置。
+
+提醒由鸿蒙日历代理提醒触发，不依赖 React 页面计时器。列表从系统查询，应用重启后可重新读取。普通浏览器和没有接入扩展的旧宿主显示不支持原生提醒。
+
+完成或删除待办时，先取消关联提醒，再保存待办。取消失败保留待办；如果取消成功后存储失败，页面提示“提醒已取消”，待办保留原内容。这两项系统操作不是同一个事务。调用超时不能断言系统没有执行，请用“刷新提醒”核对后继续；不要重复盲点设置。
+
+通知点击通过 EntryAbility 的 onCreate/onNewWant 接收事项标识，冷启动和已打开应用都将显示全部分类并定位待办。若对应事项已删除，页面会说明。应用被系统限流、通知关闭、勿扰模式及卸载均可能影响提醒，请勿用作必须准时送达的闹钟。
+
+### 实现与接入边界
+
+本功能是 Todo 宿主扩展，不是已发布 Runtime 1.0.0 的内置 API。TodoReminderProxy 处理 app.reminder.status、requestPermission、schedule、cancel，其余请求转发公开 Runtime；Web 侧复用同一 SDK 实例的 send。没有修改 oh_modules，也无需重新发布 npm 或 OHPM 包。
+
+宿主声明 ohos.permission.PUBLISH_AGENT_REMINDER，并使用 @kit.BackgroundTasksKit 的 reminderAgentManager 与 @kit.NotificationKit 的 notificationManager。提醒的 taskId、标题及时间保存在系统提醒的 WantAgent 参数里，仅查询/取消本功能标记的提醒。通知目标固定为当前应用，Web 页面不能选择其他包。
+
+如把 React 页面同步到其他宿主，也需移植 TodoReminderProxy、Index 的代理注册和通知路由、EntryAbility 的启动参数处理及模块权限。仅复制 HTML 不会获得此扩展。
+
+官方参考：[代理提醒开发指南](https://github.com/openharmony/docs/blob/master/en/application-dev/task-management/agent-powered-reminder.md)、[reminderAgentManager API](https://github.com/openharmony/docs/blob/master/en/application-dev/reference/apis-backgroundtasks-kit/js-apis-reminderAgentManager.md)。
+
+### 真机验收
+
+1. 执行 npm run check:all 和 npm run build:harmony，安装本次 signed HAP。
+2. 新建独有的测试事项，允许通知，设为“2分钟后”，确认系统提醒列表中出现。
+3. 返回桌面，再完全退出应用，等待提醒触发。查看通知是否包含测试事项。
+4. 点击通知，确认返回应用并定位该事项。再设置一次提醒后完成/删除事项，确认系统提醒已取消。
+5. 如未收到通知，检查应用通知开关、系统勿扰状态、设备能力及页面反馈，刷新系统提醒列表。测试结束只移除自己的测试事项。
+
+### 华为真机：必须先申请代理提醒能力
+
+2026-10-13 的真机验收：签名安装、应用启动、通知授权、提醒查询均成功；创建提醒返回 1700002。系统日志显示 VerifyCloudCapability failed，capability = reminder_capability，并将本应用提醒额度限制为 0。当前包名尚未申请代理提醒开放能力，因此后台触发和通知点击尚未通过真机验收。
+
+仅在 module.json5 声明权限、打开手机通知或使用自动签名，不能解决这一外部能力限制。也不要删除手机上的其他应用数据来尝试修复。
+
+在华为开发者平台的对应 HarmonyOS 应用中申请代理提醒能力，申请时使用本项目真实包名 com.lichenyang.runtime.todo。入口与材料要求以[华为代理提醒指南](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/agent-powered-reminder)和平台当前页面为准。开通后为同一包名重新生成具备该能力的调试 Profile，按平台要求在 DevEco 配置手动签名，确认 product 关联该签名，重新构建、安装，再按上面的真机步骤验收。
+
+可用于整理申请材料的场景说明（按实际应用信息修改）：
+
+> 本应用为个人待办效率工具。用户主动选择待完成事项并设置提醒时间，系统到时通知用户处理该事项。提醒不用于营销、推送广告或后台常驻；用户可以取消提醒，完成或删除待办时应用会取消对应提醒。通知点击返回对应待办。
+
+页面已提供“待办提醒”的事项选择、时间选择、通知授权、设置和取消入口，可截取真实界面作为功能场景材料。不要把模拟测试结果写成真机提醒已送达。开发者账号、真实应用分类和业务申请由账号持有人核对并提交。
+
+若能力已开通仍出现 1700002，核对包名、能力开关、新 Profile 和实际安装包是否一致，再检查提醒数量。[官方错误码入口](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/errorcode-reminderagentmanager)。

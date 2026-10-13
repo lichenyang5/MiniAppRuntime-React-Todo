@@ -298,3 +298,45 @@ footer {
     padding: 7px 2px;
   }
 }
+.reminder-panel {
+  margin-top: 20px;
+}
+.reminder-panel p {
+  font-size: 12px;
+  color: #718177;
+  overflow-wrap: anywhere;
+}
+.reminder-panel form {
+  margin-top: 16px;
+}
+.reminder-panel label {
+  font-size: 12px;
+  color: #718177;
+}
+.reminder-panel .primary {
+  padding: 12px 18px;
+}
+.reminder-list {
+  list-style: none;
+  padding: 0;
+}
+.reminder-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eef1ec;
+}
+.reminder-list span {
+  overflow-wrap: anywhere;
+}
+.reminder-list small {
+  display: block;
+  margin-top: 5px;
+}
+.reminder-target {
+  background: #eaf1e6;
+  outline: 2px solid #315c46;
+  border-radius: 8px;
+}

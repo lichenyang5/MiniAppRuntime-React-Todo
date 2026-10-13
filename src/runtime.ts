@@ -2,7 +2,9 @@ import { createTypedApi, initMyASCF } from '@lcy453/miniapp-runtime-harmony-web-
 import { decodeTodos, STORAGE_KEY } from './todos'
 import type { Todo } from './todos'
 
-const api = createTypedApi(initMyASCF())
+import { decodeReminderStatus, unsupported } from './reminders'
+const client = initMyASCF()
+const api = createTypedApi(client)
 type ProxyWindow = Window & { MyASCFNative?: { postMessage?: unknown } }
 export const browserPreview = !/^(resource|file):$/.test(location.protocol)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -43,4 +45,30 @@ export function storageLabel() {
   return browserPreview && !(window as ProxyWindow).MyASCFNative
     ? '浏览器预览 · 本地存储'
     : '鸿蒙 Runtime · 原生存储'
+}
+
+export async function reminderCall(
+  action: 'status' | 'requestPermission' | 'schedule' | 'cancel',
+  params: Record<string, unknown> = {},
+  signal?: AbortSignal,
+) {
+  if (browserPreview && !(window as ProxyWindow).MyASCFNative) return unsupported
+  await waitForNative(signal)
+  try {
+    const response = await client.send('app.reminder.' + action, params, {
+      signal,
+      timeout: action === 'requestPermission' ? 60000 : 15000,
+    })
+    return decodeReminderStatus(response.data)
+  } catch (error) {
+    if (
+      action === 'status' &&
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      /UNKNOWN_ACTION|unknown action|未注册|不支持.*action/i.test(String(error.message))
+    )
+      return unsupported
+    throw error
+  }
 }
