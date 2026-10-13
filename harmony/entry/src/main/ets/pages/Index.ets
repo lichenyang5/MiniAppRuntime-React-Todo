@@ -1,3 +1,5 @@
+import { common } from '@kit.AbilityKit';
+import { BackupFileProxy } from './BackupFileProxy';
 import { webview } from '@kit.ArkWeb';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { MyASCFRuntime } from 'myascf_runtime';
@@ -8,12 +10,13 @@ struct Index {
   private controller: webview.WebviewController = new webview.WebviewController();
   private runtime: MyASCFRuntime = new MyASCFRuntime(this.controller, getContext(this));
 
+  private proxy: BackupFileProxy = new BackupFileProxy(this.runtime, this.controller, getContext(this) as common.UIAbilityContext);
   build() {
     Column() {
       Web({ src: $rawfile('web/index.html'), controller: this.controller })
         .javaScriptAccess(true)
         .javaScriptProxy({
-          object: this.runtime.getNativeProxy(),
+          object: this.proxy,
           name: this.runtime.getProxyName(),
           methodList: this.runtime.getMethodList(),
           controller: this.controller

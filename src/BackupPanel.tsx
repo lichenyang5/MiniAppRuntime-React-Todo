@@ -1,8 +1,12 @@
+import {
+  ERROR_CODE_TIMEOUT,
+  ERROR_CODE_INVALID_RESPONSE,
+} from '@lcy453/miniapp-runtime-harmony-web-sdk'
 import { useEffect, useRef, useState } from 'react'
 import type { Todo } from './todos'
 import { decodeBackup, encodeBackup, MAX_BACKUP_BYTES, planImport } from './backup'
 import type { ImportPlan } from './backup'
-import { browserPreview, copyBackup } from './runtime'
+import { usesNativeFiles, copyBackup, nativeBackupFile } from './runtime'
 
 const explain = (error: unknown) =>
   error instanceof Error
@@ -36,11 +40,13 @@ export function BackupPanel({
   }, [])
   const plan = preview?.base === todos ? preview.plan : null
   const inactive = disabled || busy
+  const nativeFiles = usesNativeFiles()
+  const [pickerUncertain, setPickerUncertain] = useState(false)
 
   function exportText() {
     try {
       setOutput(encodeBackup(todos))
-      setMessage('备份已生成，包含当前全部待办。请复制或下载保存。')
+      setMessage('备份已生成，包含当前全部待办。请复制或保存为 JSON 文件。')
     } catch (error) {
       setMessage(explain(error))
     }
@@ -91,6 +97,45 @@ export function BackupPanel({
       }
     }
   }
+  async function pick(action: 'saveFile' | 'openFile') {
+    const signal = lifetime.current?.signal
+    if (inactive || pickerUncertain || lock.current || !signal || signal.aborted) return
+    lock.current = true
+    setBusy(true)
+    onBusy(true)
+    try {
+      const result = await nativeBackupFile(
+        action,
+        action === 'saveFile' ? output : undefined,
+        signal,
+      )
+      if (signal.aborted) return
+      if (result.cancelled) {
+        setMessage('已取消文件选择，原内容保留。')
+        return
+      }
+      if (action === 'openFile') {
+        setInput(result.text!)
+        setPreview(null)
+        setMessage('文件已读取，请预览导入。')
+      } else setMessage('备份文件已保存到选择的位置。')
+    } catch (error) {
+      if (signal.aborted) return
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+      if ([ERROR_CODE_TIMEOUT, ERROR_CODE_INVALID_RESPONSE].includes(Number(code))) {
+        setPickerUncertain(true)
+        setMessage(
+          '文件操作结果待确认。请关闭系统选择器并退出重启应用，再核对目标文件；不要重复保存。',
+        )
+      } else setMessage('文件操作失败：' + explain(error) + '。原导入内容保留。')
+    } finally {
+      lock.current = false
+      if (!signal.aborted) {
+        setBusy(false)
+        onBusy(false)
+      }
+    }
+  }
   function download() {
     const url = URL.createObjectURL(new Blob([output], { type: 'application/json;charset=utf-8' }))
     const link = document.createElement('a')
@@ -114,7 +159,17 @@ export function BackupPanel({
             <button className="quiet" disabled={inactive} onClick={() => void copy()}>
               复制备份
             </button>
-            {browserPreview && (
+            {nativeFiles && (
+              <button
+                className="quiet"
+                disabled={inactive || pickerUncertain}
+                onClick={() => void pick('saveFile')}
+              >
+                保存 JSON 文件
+              </button>
+            )}
+
+            {!nativeFiles && (
               <button className="quiet" disabled={inactive} onClick={download}>
                 下载 JSON
               </button>
@@ -135,7 +190,17 @@ export function BackupPanel({
         }}
         placeholder="在这里粘贴备份，先预览再确认导入"
       />
-      {browserPreview && (
+      {nativeFiles && (
+        <button
+          type="button"
+          className="quiet"
+          disabled={inactive || pickerUncertain}
+          onClick={() => void pick('openFile')}
+        >
+          从文件导入
+        </button>
+      )}
+      {!nativeFiles && (
         <label>
           选择 JSON 文件
           <input
