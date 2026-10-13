@@ -6,7 +6,8 @@ import {
   ERROR_CODE_INVALID_RESPONSE,
 } from '@lcy453/miniapp-runtime-harmony-web-sdk'
 import type { Todo, Category, TodoDraft } from './todos'
-import { loadTodos, notify, saveTodos, storageLabel } from './runtime'
+import { loadTodos, notify, saveTodos, storageLabel, reminderCall } from './runtime'
+import { ReminderPanel } from './ReminderPanel'
 import './App.css'
 
 type Filter = 'all' | 'active' | 'done'
@@ -38,7 +39,46 @@ function App() {
   const newInput = useRef<HTMLInputElement | null>(null)
   const returnFocus = useRef<HTMLButtonElement | null>(null)
   const [reload, setReload] = useState(0)
+  const [reminderBusy, setReminderBusy] = useState(false)
+  const [reminderRevision, setReminderRevision] = useState(0)
+  const reminderLocked = useRef(false)
+  const [reminderTarget, setReminderTarget] = useState('')
+  const [reminderOpen, setReminderOpen] = useState(0)
   const editingId = editing?.id
+
+  useEffect(() => {
+    const receive = () => {
+      try {
+        const raw = (window as Window & { __todoReminderOpen__?: string }).__todoReminderOpen__
+        if (!raw) return
+        const value: unknown = JSON.parse(raw)
+        if (
+          value &&
+          typeof value === 'object' &&
+          'taskId' in value &&
+          typeof value.taskId === 'string'
+        ) {
+          setFilter('all')
+          setCategoryFilter('all')
+          setReminderTarget(value.taskId)
+          setReminderOpen((previous) => previous + 1)
+        }
+      } catch {
+        /* Ignore unrelated or malformed launch parameters. */
+      }
+    }
+    receive()
+    window.addEventListener('todo-reminder-open', receive)
+    return () => window.removeEventListener('todo-reminder-open', receive)
+  }, [])
+  useEffect(() => {
+    if (!reminderTarget || phase !== 'ready') return
+    const node = document.getElementById('todo-' + reminderTarget)
+    if (node) {
+      node.scrollIntoView({ block: 'center' })
+      node.focus()
+    }
+  }, [reminderTarget, reminderOpen, phase, filter, categoryFilter, todos])
 
   useEffect(() => {
     if (editingId) {
@@ -89,12 +129,31 @@ function App() {
 
   async function persist(next: Todo[], success: string, afterSave?: () => void) {
     const signal = lifecycle.current?.signal
-    if (!signal || signal.aborted || locked.current || phase !== 'ready') return
+    if (!signal || signal.aborted || locked.current || reminderLocked.current || phase !== 'ready')
+      return
     locked.current = true
     setBusy(true)
     setError('')
     setMessage('')
+    let remindersCancelled = false
+    let saving = false
     try {
+      const removed = todos.filter(
+        (todo) =>
+          !next.some((item) => item.id === todo.id) ||
+          (!todo.done && next.some((item) => item.id === todo.id && item.done)),
+      )
+      if (removed.length) {
+        const state = await reminderCall('status', {}, signal)
+        for (const todo of removed) {
+          if (state.reminders.some((item) => item.taskId === todo.id)) {
+            await reminderCall('cancel', { taskId: todo.id }, signal)
+            remindersCancelled = true
+          }
+        }
+      }
+      if (signal.aborted) return
+      saving = true
       await saveTodos(next, signal)
       if (signal.aborted) return
       setTodos(next)
@@ -108,7 +167,10 @@ function App() {
       }
     } catch (reason) {
       if (signal.aborted) return
-      if ([ERROR_CODE_TIMEOUT, ERROR_CODE_INVALID_RESPONSE].includes(Number(errorCode(reason)))) {
+      if (
+        saving &&
+        [ERROR_CODE_TIMEOUT, ERROR_CODE_INVALID_RESPONSE].includes(Number(errorCode(reason)))
+      ) {
         setPhase('uncertain')
         setError(
           `保存结果尚未确认：${errorMessage(reason)}。请彻底退出并重新启动应用，读取最终存储结果后继续。`,
@@ -116,9 +178,13 @@ function App() {
       } else {
         setError(`保存失败，页面保留原内容：${errorMessage(reason)}`)
       }
+      if (remindersCancelled) setError((value) => '提醒已取消；' + value)
     } finally {
       locked.current = false
-      if (!signal.aborted) setBusy(false)
+      if (!signal.aborted) {
+        setBusy(false)
+        setReminderRevision((value) => value + 1)
+      }
     }
   }
 
@@ -152,7 +218,7 @@ function App() {
       (filter === 'all' || (filter === 'done' ? item.done : !item.done)) &&
       (categoryFilter === 'all' || (item.category ?? 'personal') === categoryFilter),
   )
-  const disabled = phase !== 'ready' || busy
+  const disabled = phase !== 'ready' || busy || reminderBusy
 
   return (
     <main className="workspace">
@@ -374,7 +440,15 @@ function App() {
         ) : (
           <ul className="todo-list">
             {visible.map((item) => (
-              <li key={item.id} className={item.done ? 'done' : ''}>
+              <li
+                key={item.id}
+                id={'todo-' + item.id}
+                tabIndex={-1}
+                className={[
+                  item.done ? 'done' : '',
+                  reminderTarget === item.id ? 'reminder-target' : '',
+                ].join(' ')}
+              >
                 <label>
                   <input
                     type="checkbox"
@@ -448,6 +522,18 @@ function App() {
           </p>
         )}
       </section>
+      {reminderTarget && phase === 'ready' && !todos.some((todo) => todo.id === reminderTarget) && (
+        <p role="status">提醒对应的待办已删除。</p>
+      )}
+      <ReminderPanel
+        todos={todos}
+        disabled={phase !== 'ready' || busy || Boolean(editing)}
+        revision={reminderRevision}
+        onBusy={(value) => {
+          reminderLocked.current = value
+          setReminderBusy(value)
+        }}
+      />
       <footer>
         每一步，都算数。<span>React Todo · MiniAppRuntime</span>
       </footer>
