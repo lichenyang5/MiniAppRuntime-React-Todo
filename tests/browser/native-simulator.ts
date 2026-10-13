@@ -9,7 +9,7 @@ interface Response {
   requestId: string
   code: number | string
   message: string
-  data?: { value?: string; echoAction?: string }
+  data?: { value?: string; echoAction?: string; cancelled?: boolean; text?: string }
 }
 interface DebugRecord {
   requestId: string
@@ -20,6 +20,9 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
   let value = initialValue
   let writeMode: 'ok' | 'fail' | 'hold' | 'invalid' = 'ok'
   let toastFails = false
+  let fileText = '[]'
+  let fileMode: 'ok' | 'cancel' | 'fail' | 'invalid' | 'hold' = 'ok'
+  const pendingFiles: Array<() => void> = []
   const pending: Array<() => void> = []
   await page.exposeFunction('__testNativeSend', async (raw: string): Promise<Response> => {
     const request: Request = JSON.parse(raw)
@@ -29,6 +32,20 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
       code: 0,
       message: 'SUCCESS',
       data: { echoAction: request.action },
+    }
+    if (request.action.startsWith('app.backup.')) {
+      if (fileMode === 'fail') return { ...success, code: 2011, message: 'SIMULATED_FILE_FAILURE' }
+      if (fileMode === 'invalid') return { ...success, data: {} }
+      if (fileMode === 'hold') await new Promise<void>((resolve) => pendingFiles.push(resolve))
+      if (fileMode === 'cancel') return { ...success, data: { cancelled: true } }
+      if (request.action === 'app.backup.saveFile') fileText = request.params.text!
+      return {
+        ...success,
+        data: {
+          cancelled: false,
+          ...(request.action === 'app.backup.openFile' ? { text: fileText } : {}),
+        },
+      }
     }
     if (request.action === 'system.storage.getItem') return { ...success, data: { value } }
     if (request.action === 'system.storage.setItem') {
@@ -69,6 +86,18 @@ export async function nativeSimulator(page: Page, initialValue = '[]') {
   })
   return {
     requests,
+    setFileMode(mode: typeof fileMode) {
+      fileMode = mode
+    },
+    setFileText(text: string) {
+      fileText = text
+    },
+    get fileText() {
+      return fileText
+    },
+    releaseFiles() {
+      pendingFiles.splice(0).forEach((resolve) => resolve())
+    },
     async recorded(requestId: string, status: string) {
       return page.evaluate(
         ({ requestId, status }) =>

@@ -1,8 +1,13 @@
-import { createTypedApi, initMyASCF } from '@lcy453/miniapp-runtime-harmony-web-sdk'
+import {
+  createTypedApi,
+  initMyASCF,
+  ERROR_CODE_INVALID_RESPONSE,
+} from '@lcy453/miniapp-runtime-harmony-web-sdk'
 import { decodeTodos, STORAGE_KEY } from './todos'
 import type { Todo } from './todos'
 
-const api = createTypedApi(initMyASCF())
+const client = initMyASCF()
+const api = createTypedApi(client)
 type ProxyWindow = Window & { MyASCFNative?: { postMessage?: unknown } }
 export const browserPreview = !/^(resource|file):$/.test(location.protocol)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -54,4 +59,42 @@ export async function copyBackup(text: string, signal?: AbortSignal) {
   }
   await waitForNative(signal)
   await api.system.clipboard.writeText({ text }, { signal })
+}
+
+export function usesNativeFiles() {
+  return !browserPreview || typeof (window as ProxyWindow).MyASCFNative?.postMessage === 'function'
+}
+export async function nativeBackupFile(
+  action: 'saveFile' | 'openFile',
+  text?: string,
+  signal?: AbortSignal,
+): Promise<{ cancelled: boolean; text?: string }> {
+  await waitForNative(signal)
+  let response
+  try {
+    response = await client.send('app.backup.' + action, action === 'saveFile' ? { text } : {}, {
+      signal,
+      timeout: 120000,
+    })
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 1001)
+      throw new Error('此宿主未接入原生文件备份，请更新鸿蒙宿主，或使用复制粘贴备份', {
+        cause: error,
+      })
+    throw error
+  }
+  const data = response.data
+  if (
+    !data ||
+    typeof data.cancelled !== 'boolean' ||
+    (!data.cancelled && action === 'openFile' && typeof data.text !== 'string')
+  ) {
+    throw Object.assign(new Error('文件操作响应无效，请退出重启后核对文件'), {
+      code: ERROR_CODE_INVALID_RESPONSE,
+    })
+  }
+  return {
+    cancelled: data.cancelled,
+    ...(typeof data.text === 'string' ? { text: data.text } : {}),
+  }
 }
