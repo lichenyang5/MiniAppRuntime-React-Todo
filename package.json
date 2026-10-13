@@ -16,7 +16,7 @@
     "init:harmony": "node scripts/init-harmony.mjs",
     "format": "prettier --write .",
     "lint:fix": "eslint . --fix",
-    "test": "node --experimental-strip-types --test src/todos.test.ts src/reminders.test.ts scripts/harmony.test.mjs",
+    "test": "node --experimental-strip-types --test src/todos.test.ts src/backup.test.ts scripts/harmony.test.mjs",
     "check:harmony": "node scripts/check-harmony.mjs",
     "format:check": "prettier --check .",
     "test:browser": "playwright test",
