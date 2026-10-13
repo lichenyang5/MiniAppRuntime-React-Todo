@@ -9,7 +9,16 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "sync:harmony": "node scripts/sync-harmony.mjs",
-    "test": "node --experimental-strip-types --test src/todos.test.ts"
+    "typecheck": "tsc -b",
+    "setup:harmony": "node scripts/harmony-cli.mjs install",
+    "build:harmony": "npm run build && npm run sync:harmony && node scripts/harmony-cli.mjs build",
+    "check": "npm run format:check && npm run lint && npm test && npm run check:harmony && npm run build",
+    "init:harmony": "node scripts/init-harmony.mjs",
+    "format": "prettier --write .",
+    "lint:fix": "eslint . --fix",
+    "test": "node --experimental-strip-types --test src/todos.test.ts scripts/harmony.test.mjs",
+    "check:harmony": "node scripts/check-harmony.mjs",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@lcy453/miniapp-runtime-harmony-web-sdk": "0.1.0",
@@ -26,7 +35,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",
     "globals": "^17.12.0",
-    "prettier": "^3.9.10",
+    "prettier": "3.9.10",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.69.0",
     "vite": "^8.3.0"

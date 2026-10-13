@@ -99,7 +99,7 @@ form input {
   padding: 7px 9px;
   border-radius: 7px;
 }
-.filters button[aria-pressed="true"] {
+.filters button[aria-pressed='true'] {
   background: #eaf1e6;
   color: #325a3c;
 }
