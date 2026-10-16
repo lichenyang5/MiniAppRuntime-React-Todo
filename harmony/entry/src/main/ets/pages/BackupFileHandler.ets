@@ -1,48 +1,25 @@
 import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
-import { webview } from '@kit.ArkWeb';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { MyASCFRuntime } from 'myascf_runtime';
+import { BridgeHandler, BridgeRequest, BridgeResponse, BridgeResponseData } from 'myascf_runtime';
 
-interface Params { text?: string }
-interface Request { requestId: string; action: string; params: Params }
-interface FileResult { cancelled: boolean; text?: string }
-interface Response { requestId: string; code: number; message: string; data?: FileResult }
+interface FileResult extends BridgeResponseData { cancelled: boolean; text?: string }
 
 const LIMIT: number = 1024 * 1024;
 
-export class BackupFileProxy {
+export class BackupFileHandler implements BridgeHandler {
   private busy: boolean = false;
-  private runtime: MyASCFRuntime;
-  private controller: webview.WebviewController;
   private context: common.UIAbilityContext;
-  constructor(runtime: MyASCFRuntime, controller: webview.WebviewController, context: common.UIAbilityContext) {
-    this.runtime = runtime; this.controller = controller; this.context = context;
+  constructor(context: common.UIAbilityContext) {
+    this.context = context;
   }
 
-  postMessage(raw: string): void {
-    let request: Request;
-    try { request = JSON.parse(raw) as Request; }
-    catch (_) { this.runtime.getNativeProxy().postMessage(raw); return; }
-    if (!request || !['app.backup.saveFile', 'app.backup.openFile'].includes(request.action)) {
-      this.runtime.getNativeProxy().postMessage(raw); return;
-    }
+  async handle(request: BridgeRequest): Promise<BridgeResponse> {
     if (this.busy) {
-      void this.reply({ requestId: request.requestId, code: 2012, message: '已有文件操作，请先关闭当前系统选择器' });
-      return;
+      return { requestId: request.requestId, code: 2012, message: '已有文件操作，请先关闭当前系统选择器' };
     }
     this.busy = true;
-    void this.handle(request);
-  }
-
-  private async reply(response: Response): Promise<void> {
-    try {
-      await this.controller.runJavaScript('window.__myascf_on_native_response__?.(' + JSON.stringify(response) + ')');
-    } catch (_) { /* A closed page cannot receive the picker result. */ }
-  }
-
-  private async handle(request: Request): Promise<void> {
     try {
       if (!canIUse('SystemCapability.FileManagement.UserFileService')) throw new Error('此设备不支持系统文件选择器');
       let data: FileResult;
@@ -69,10 +46,10 @@ export class BackupFileProxy {
         if (uris.length === 0) data = { cancelled: true };
         else data = { cancelled: false, text: this.read(uris[0]) };
       }
-      await this.reply({ requestId: request.requestId, code: 0, message: 'ok', data: data });
+      return { requestId: request.requestId, code: 0, message: 'ok', data: data };
     } catch (error) {
       const failure = error as BusinessError;
-      await this.reply({ requestId: request.requestId, code: 2011, message: failure.message || '文件操作失败' });
+      return { requestId: request.requestId, code: 2011, message: failure.message || '文件操作失败' };
     } finally { this.busy = false; }
   }
 
