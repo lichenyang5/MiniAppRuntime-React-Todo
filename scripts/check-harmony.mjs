@@ -8,7 +8,15 @@ const profile = JSON.parse(await readFile(path.join(host, 'build-profile.templat
 assert.deepEqual(profile.app.signingConfigs, [])
 assert.equal(profile.app.products[0].compatibleSdkVersion, '6.1.0(23)')
 const dependency = JSON.parse(await readFile(path.join(host, 'entry/oh-package.json5'), 'utf8'))
-assert.equal(dependency.dependencies.myascf_runtime, '1.0.0')
+assert.equal(dependency.dependencies.myascf_runtime, '1.1.0')
+const lock = JSON.parse(await readFile(path.join(host, 'entry/oh-package-lock.json5'), 'utf8'))
+const runtimePackage = lock.packages['myascf_runtime@1.1.0']
+assert.equal(runtimePackage.version, '1.1.0')
+assert.equal(runtimePackage.registryType, 'ohpm')
+assert.equal(
+  runtimePackage.resolved,
+  'https://ohpm.openharmony.cn/ohpm/myascf_runtime/-/myascf_runtime-1.1.0.har',
+)
 const module = JSON.parse(await readFile(path.join(host, 'entry/src/main/module.json5'), 'utf8'))
 assert.equal(module.module.mainElement, 'EntryAbility')
 assert.deepEqual(
