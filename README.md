@@ -1,6 +1,6 @@
 # MiniAppRuntime React Todo
 
-独立的 React + TypeScript 待办应用，包含可直接打开的 HarmonyOS Stage 宿主。通过公开 npm SDK `0.1.0` 与 OHPM Runtime `1.1.0` 调用原生存储和 Toast，无需克隆框架源码，也无需准备 MyApplication4。
+独立的 React + TypeScript 待办应用，包含可直接打开的 HarmonyOS Stage 宿主。通过公开 npm SDK `0.1.0` 与 OHPM Runtime `1.1.1` 调用原生存储和 Toast，无需克隆框架源码，也无需准备 MyApplication4。
 
 支持添加、编辑、完成/恢复、删除、分类与状态筛选、截止日期和清理已完成事项。只使用 `react-todo:v1` 存储键；保存成功后更新列表，读取损坏数据时阻止编辑，超时或响应格式异常时暂停编辑并要求彻底退出后重启确认结果。
 
@@ -210,7 +210,7 @@ npm run test:browser
 
 更新已有项目时，在项目根目录运行 `npm run setup:harmony` 安装公开 OHPM 依赖，再运行 `npm run build:harmony` 重新生成并同步 React 页面、编译宿主。仅更新网页不会更新手机里已安装的原生 Runtime，需要重新安装生成的签名 HAP。npm Web SDK 仍使用 `0.1.0`，本次无需升级。
 
-文件操作通过 Runtime `1.1.0` 的 `registerCustomApi` 注册 `app.backup.saveFile` 和 `app.backup.openFile`，由宿主 `BackupFileHandler` 实现。两个能力共用同一个处理器，避免同时打开多个系统选择器。Web 侧继续复用现有 SDK 实例，Runtime 统一处理请求分发和回调。宿主只处理系统 Picker 返回的 URI，不接受页面指定路径；文件授权由用户选择提供，不申请全盘读写权限，也不需要代理提醒开放能力。旧宿主未注册扩展时会显示提示，仍可复制粘贴。
+文件操作通过 Runtime `1.1.1` 的 `registerCustomApi` 注册 `app.backup.saveFile` 和 `app.backup.openFile`，由宿主 `BackupFileHandler` 实现。两个能力共用同一个处理器，避免同时打开多个系统选择器。Web 侧继续复用现有 SDK 实例，Runtime 统一处理请求分发和回调。宿主只处理系统 Picker 返回的 URI，不接受页面指定路径；文件授权由用户选择提供，不申请全盘读写权限，也不需要代理提醒开放能力。旧宿主未注册扩展时会显示提示，仍可复制粘贴。
 
 读写仅支持最多 1 MiB 的 UTF-8 JSON；选文件只读取文本，格式与版本由预览校验。系统 Picker 等待上限为两分钟；超时或响应异常会暂停进一步文件操作，须先关闭选择器并彻底退出重启，再核对目标文件。前端取消等待不撤销已提交的原生写入。写入失败可能留下不完整的目标文件，需重新导出；不要把失败文件当成有效备份。
 
@@ -219,3 +219,5 @@ npm run test:browser
 参考：[OpenHarmony 保存用户文件](https://github.com/openharmony/docs/blob/master/en/application-dev/file-management/save-user-file.md)。
 
 2026-10-13 原生文件真机验收：取消系统选择器正常返回；保存到 Download 的时间戳 JSON 文件成功；删除独有测试事项后选择该文件，预览显示新增 1、重复跳过 1，确认后强制退出重启仍能读取恢复结果。最终仅清理测试事项，原有待办保留。
+
+2026-10-21 Runtime 1.1.1 验收：从公开 OHPM 安装 1.1.1（npm Web SDK 仍为 0.1.0），14 项单元/脚本测试、23 项浏览器测试及签名 HAP 构建通过。真机创建唯一测试事项、保存 JSON 到 Download、删除测试事项、选择刚导出的文件，预览显示新增 1、重复跳过 1；确认导入后强制退出重启，恢复事项仍存在。最终仅清理该测试事项，原有已完成事项保留。系统日志确认文件保存/读取通过 Runtime 分发，参数为 [redacted]，未在参数日志中检出测试标题。Download 中保留本次验收备份文件；未进行真实磁盘故障注入。
